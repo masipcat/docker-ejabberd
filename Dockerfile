@@ -1,10 +1,11 @@
-FROM debian:stretch-slim
-MAINTAINER Rafael Römhild <rafael@roemhild.de>
+FROM erlang:21.1.2-slim
+
+MAINTAINER Jordi Masip <jordi@masip.cat>
 
 ARG EJABBERD_UID=999
 ARG EJABBERD_GID=999
 
-ENV EJABBERD_BRANCH=18.04 \
+ENV EJABBERD_BRANCH=18.09 \
     EJABBERD_USER=ejabberd \
     EJABBERD_HTTPS=true \
     EJABBERD_STARTTLS=true \
@@ -12,13 +13,12 @@ ENV EJABBERD_BRANCH=18.04 \
     EJABBERD_HOME=/opt/ejabberd \
     EJABBERD_DEBUG_MODE=false \
     HOME=$EJABBERD_HOME \
-    PATH=$EJABBERD_HOME/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin \
+    PATH=$EJABBERD_HOME/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/lib/erlang/bin \
     DEBIAN_FRONTEND=noninteractive \
     XMPP_DOMAIN=localhost \
     LC_ALL=C.UTF-8 \
     LANG=en_US.UTF-8 \
-    LANGUAGE=en_US.UTF-8 \
-    GOSU_VERSION=1.10
+    LANGUAGE=en_US.UTF-8
 
 # Add ejabberd user and group
 RUN groupadd --gid $EJABBERD_GID $EJABBERD_USER \
@@ -28,15 +28,15 @@ RUN groupadd --gid $EJABBERD_GID $EJABBERD_USER \
        --uid $EJABBERD_UID \
        $EJABBERD_USER
 
+#ADD https://packages.erlang-solutions.com/debian/erlang_solutions.asc /tmp/erlang_solutions.asc
+
 # Install packages and perform cleanup
 RUN set -x \
     && buildDeps=' \
         automake \
         build-essential \
         dirmngr \
-        erlang-src erlang-dev \
         git-core \
-        gpg \
         libexpat-dev \
         libgd-dev \
         libssl-dev \
@@ -48,10 +48,6 @@ RUN set -x \
     ' \
     && requiredAptPackages=' \
         ca-certificates \
-        erlang-base-hipe erlang-snmp erlang-ssl erlang-ssh \
-        erlang-tools erlang-xmerl erlang-corba erlang-diameter erlang-eldap \
-        erlang-eunit erlang-ic erlang-odbc erlang-os-mon \
-        erlang-parsetools erlang-percept erlang-typer \
         imagemagick \
         inotify-tools \
         libgd3 \
@@ -63,6 +59,7 @@ RUN set -x \
         python2.7 \
         python-jinja2 \
         python-mysqldb \
+        gosu \
     ' \
     && apt-get update \
     && apt-get install -y $buildDeps $requiredAptPackages --no-install-recommends \
@@ -100,22 +97,8 @@ RUN set -x \
     && update-ca-certificates \
     && set -ex \
     && dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')" \
-    && wget -O /usr/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch" \
-    && wget -O /usr/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc" \
-# verify the signature
-    && export GNUPGHOME="$(mktemp -d)" \
-    && for server in $(shuf -e ha.pool.sks-keyservers.net \
-                             hkp://p80.pool.sks-keyservers.net:80 \
-                             keyserver.ubuntu.com \
-                             hkp://keyserver.ubuntu.com:80 \
-                             pgp.mit.edu) ; do \
-         gpg --keyserver "$server" --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 && break || : ; \
-     done \
-    && gpg --batch --verify /usr/bin/gosu.asc /usr/bin/gosu \
-    && chmod +sx /usr/bin/gosu \
     && gosu nobody true \
 # cleanup
-    && rm -r /usr/bin/gosu.asc \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get purge -y --auto-remove $buildDeps
 
